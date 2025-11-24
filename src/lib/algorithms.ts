@@ -151,7 +151,6 @@ export const dijkstra = (nodes: Node[], edges: Edge[], startNodeId: string, endN
     }
   }
 
-  // Highlight Path Logic
   if (endNodeId && dist.get(endNodeId) !== Infinity) {
       let curr = endNodeId;
       const pathStack = [];
@@ -184,7 +183,6 @@ export const dijkstra = (nodes: Node[], edges: Edge[], startNodeId: string, endN
   return steps;
 };
 
-// ✅ แก้ไข: เพิ่ม Parameter startNodeId
 export const prim = (nodes: Node[], edges: Edge[], startNodeId: string): AlgoStep[] => {
   if (!startNodeId || nodes.length === 0) return [];
   
@@ -192,7 +190,6 @@ export const prim = (nodes: Node[], edges: Edge[], startNodeId: string): AlgoSte
   const adj = getAdjacencyList(nodes, edges);
   const visited = new Set<string>();
   
-  // ✅ ใช้ startNodeId ที่รับมา แทนการ Hardcode nodes[0]
   const pq: { nodeId: string; weight: number; edgeId?: string; fromNodeId?: string }[] = [{ nodeId: startNodeId, weight: 0 }];
   
   while (pq.length > 0) {
@@ -233,9 +230,18 @@ export const prim = (nodes: Node[], edges: Edge[], startNodeId: string): AlgoSte
   return steps;
 };
 
-export const kruskal = (nodes: Node[], edges: Edge[]): AlgoStep[] => {
+export const kruskal = (nodes: Node[], edges: Edge[], startNodeId: string): AlgoStep[] => {
   const steps: AlgoStep[] = [];
   
+  if (startNodeId) {
+      const label = nodes.find(n => n.id === startNodeId)?.data.label || startNodeId;
+      steps.push({ 
+          type: 'visit-node', 
+          nodeId: startNodeId,
+          description: `Starting from Node ${label}. (Kruskal will now select edges globally).`
+      });
+  }
+
   const sortedEdges = [...edges].sort((a, b) => {
       const wA = parseFloat(a.label as string) || 1;
       const wB = parseFloat(b.label as string) || 1;
