@@ -223,7 +223,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         case 'BFS': steps = bfs(nodes, edges, currentStartNode); break;
         case 'DFS': steps = dfs(nodes, edges, currentStartNode); break;
         case 'Dijkstra': steps = dijkstra(nodes, edges, currentStartNode, endNodeId); break;
-        case 'MST-Prim': steps = prim(nodes, edges); break;
+        case 'MST-Prim': steps = prim(nodes, edges, currentStartNode); break; // ✅ แก้ไข: ส่ง currentStartNode
         case 'MST-Kruskal': steps = kruskal(nodes, edges); break;
         default: steps = dfs(nodes, edges, currentStartNode);
     }
@@ -278,7 +278,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
     const uniqueVisited = new Set<string>();
     
-    // 1. Process Order (Full History including backtracking)
     const processPath = steps
         .filter(s => s.type === 'visit-node')
         .map(s => {
@@ -287,7 +286,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         })
         .join(" -> ");
 
-    // 2. Final Result (Unique Discovery Order)
     const finalAnswerPath = steps
         .filter(s => s.type === 'visit-node')
         .map(s => {
@@ -335,8 +333,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
             consoleSummaryLogs = [
                 `----------------------------------------`,
                 `🤖 Algorithm Process (Exploration Order):`,
-                `   ${processPath}`, // Exploration order
-                `🏆 (Shortest Path):`,
+                `   ${processPath}`,
+                `🏆 Teacher's Answer (Shortest Path):`,
                 `   Path: ${pathStr}`,
                 `   Total Weight: ${totalWeight}`,
                 `----------------------------------------`
@@ -346,13 +344,12 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         }
     } 
     else {
-        // BFS & DFS
         consoleSummaryLogs = [
             `----------------------------------------`,
             `🤖 Algorithm Process (How it thinks):`,
-            `   ${processPath}`, // Full traversal including backtracking
-            `👩‍🏫 (Final Result):`,
-            `   ${finalAnswerPath}`, // Unique visited order
+            `   ${processPath}`,
+            `👩‍🏫 Teacher's Answer (Final Result):`,
+            `   ${finalAnswerPath}`,
             `----------------------------------------`
         ];
     }

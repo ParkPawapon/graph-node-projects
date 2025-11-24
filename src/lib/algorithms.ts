@@ -137,9 +137,6 @@ export const dijkstra = (nodes: Node[], edges: Edge[], startNodeId: string, endN
         description: `Processing Node ${uLabel}. Min Distance: ${dist.get(u)}.`
     });
 
-    // ถ้าเจอ End Node แล้ว และต้องการหยุดเลย (Optional)
-    // แต่ถ้าจะโชว์ทั้งหมด ให้รันต่อจนจบ แล้วค่อย Reconstruct path ตอนท้าย
-    
     const neighbors = adj.get(u) || [];
     for (const v of neighbors) {
         if (visited.has(v.nodeId)) continue;
@@ -154,7 +151,7 @@ export const dijkstra = (nodes: Node[], edges: Edge[], startNodeId: string, endN
     }
   }
 
-  // ✅ Highlight Path Logic
+  // Highlight Path Logic
   if (endNodeId && dist.get(endNodeId) !== Infinity) {
       let curr = endNodeId;
       const pathStack = [];
@@ -169,9 +166,8 @@ export const dijkstra = (nodes: Node[], edges: Edge[], startNodeId: string, endN
               break;
           }
       }
-      pathStack.push({ nodeId: startNodeId }); // Push start node
+      pathStack.push({ nodeId: startNodeId }); 
 
-      // Add steps to highlight the path
       while (pathStack.length > 0) {
           const item = pathStack.pop();
           if (item) {
@@ -188,15 +184,15 @@ export const dijkstra = (nodes: Node[], edges: Edge[], startNodeId: string, endN
   return steps;
 };
 
-export const prim = (nodes: Node[], edges: Edge[]): AlgoStep[] => {
-  if (nodes.length === 0) return [];
+// ✅ แก้ไข: เพิ่ม Parameter startNodeId
+export const prim = (nodes: Node[], edges: Edge[], startNodeId: string): AlgoStep[] => {
+  if (!startNodeId || nodes.length === 0) return [];
   
   const steps: AlgoStep[] = [];
   const adj = getAdjacencyList(nodes, edges);
   const visited = new Set<string>();
   
-  let startNodeId = nodes[0].id;
-  
+  // ✅ ใช้ startNodeId ที่รับมา แทนการ Hardcode nodes[0]
   const pq: { nodeId: string; weight: number; edgeId?: string; fromNodeId?: string }[] = [{ nodeId: startNodeId, weight: 0 }];
   
   while (pq.length > 0) {
