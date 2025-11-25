@@ -23,8 +23,8 @@ function GraphEditorContent() {
   const { 
       nodes, edges, 
       onNodesChange, onEdgesChange, onConnect, 
-      deleteSelectedElements, addNode, 
-      updateEdgeLabel, setStartNode, setEndNode, // ✅ เพิ่ม setEndNode
+      deleteSelectedElements, addNode, removeEdge, // ✅ เพิ่ม removeEdge
+      updateEdgeLabel, setStartNode, setEndNode, 
       startNodeId, endNodeId 
   } = useGraphStore();
   const { screenToFlowPosition } = useReactFlow();
@@ -68,14 +68,20 @@ function GraphEditorContent() {
     }
   }, [updateEdgeLabel]);
 
-  // 🟢 Left Click = Start Node
+  // ✅ คลิกขวาที่เส้นเพื่อลบ
+  const onEdgeContextMenu = useCallback((event: React.MouseEvent, edge: Edge) => {
+    event.preventDefault();
+    if (confirm("Delete this edge?")) {
+        removeEdge(edge.id);
+    }
+  }, [removeEdge]);
+
   const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
     setStartNode(node.id);
   }, [setStartNode]);
 
-  // 🔴 Right Click = End Node
   const onNodeContextMenu = useCallback((event: React.MouseEvent, node: Node) => {
-    event.preventDefault(); // ป้องกันเมนูคลิกขวาปกติ
+    event.preventDefault();
     setEndNode(node.id);
   }, [setEndNode]);
 
@@ -93,8 +99,9 @@ function GraphEditorContent() {
         onDelete={onDelete}
         
         onEdgeClick={onEdgeClick}
+        onEdgeContextMenu={onEdgeContextMenu} // ✅ Bind event
         onNodeClick={onNodeClick}
-        onNodeContextMenu={onNodeContextMenu} // ✅ ผูก Event คลิกขวา
+        onNodeContextMenu={onNodeContextMenu}
 
         fitView
         minZoom={0.2}
@@ -128,8 +135,10 @@ function GraphEditorContent() {
             <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                 <span>🖱️ Double Click:</span> <span className="text-zinc-300">Add Node</span>
                 <span>🖱️ Click Node:</span> <span className="text-zinc-300">Start (Green)</span>
-                <span>🖱️ Right Click:</span> <span className="text-zinc-300">Target (Red)</span>
+                <span>🖱️ Right Click Node:</span> <span className="text-zinc-300">Target (Red)</span>
                 <span>🖱️ Click Edge:</span> <span className="text-zinc-300">Edit Weight</span>
+                <span>🖱️ Right Click Edge:</span> <span className="text-zinc-300">Delete Edge</span>
+                <span>⌨️ Backspace:</span> <span className="text-zinc-300">Delete Node</span>
             </div>
             
             {(startNodeId || endNodeId) && (

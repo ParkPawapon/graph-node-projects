@@ -9,6 +9,7 @@ import {
   type OnEdgesChange,
   type OnConnect,
   type Connection,
+  MarkerType,
 } from '@xyflow/react';
 import { PRESETS } from '@/data/presets';
 import { bfs, dfs, dijkstra, prim, kruskal, type AlgoStep } from '@/lib/algorithms';
@@ -32,12 +33,14 @@ interface GraphState {
   executionResult: ResultData | null;
   logs: string[];
   animationSpeed: number;
+  isDirected: boolean;
   
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
   
   addNode: (position?: { x: number; y: number }) => void;
+  removeEdge: (edgeId: string) => void; // ✅ เพิ่ม Action ลบเส้น
   resetGraph: () => void;
   clearCanvas: () => void;
   setAlgorithm: (algo: string) => void;
@@ -48,20 +51,10 @@ interface GraphState {
   setEndNode: (id: string) => void;
   updateEdgeLabel: (edgeId: string, newLabel: string) => void;
   setAnimationSpeed: (speed: number) => void;
+  setIsDirected: (isDirected: boolean) => void;
 }
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
-
-const generateLabel = (index: number): string => {
-  let label = '';
-  index++;
-  while (index > 0) {
-    index--;
-    label = String.fromCharCode(65 + (index % 26)) + label;
-    index = Math.floor(index / 26);
-  }
-  return label;
-};
 
 const withDimensions = (nodes: Node[]) => {
     return nodes.map(n => ({
@@ -81,31 +74,52 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   executionResult: null,
   logs: [],
   animationSpeed: 500,
+  isDirected: false,
 
   onNodesChange: (changes) => set({ nodes: applyNodeChanges(changes, get().nodes) }),
   onEdgesChange: (changes) => set({ edges: applyEdgeChanges(changes, get().edges) }),
 
   onConnect: (connection: Connection) => {
     if (connection.source === connection.target) return;
-    const exists = get().edges.some(
-      e => (e.source === connection.source && e.target === connection.target) ||
-           (e.source === connection.target && e.target === connection.source)
+    const { isDirected, edges } = get();
+    
+    const exists = edges.some(e => 
+        (e.source === connection.source && e.target === connection.target) ||
+        (!isDirected && e.source === connection.target && e.target === connection.source)
     );
     if (exists) return;
+
     const edge = { 
       ...connection, 
       type: 'default', 
       animated: false, 
       label: '1', 
-      style: { stroke: '#71717a', strokeWidth: 2 } 
+      style: { stroke: '#71717a', strokeWidth: 2 },
+      markerEnd: isDirected ? { type: MarkerType.ArrowClosed, color: '#71717a' } : undefined,
     };
-    set({ edges: addEdge(edge, get().edges) });
+    set({ edges: addEdge(edge, edges) });
+  },
+
+  setIsDirected: (val: boolean) => {
+      set(state => ({
+          isDirected: val,
+          edges: state.edges.map(e => ({
+              ...e,
+              markerEnd: val ? { type: MarkerType.ArrowClosed, color: '#71717a' } : undefined
+          }))
+      }));
   },
 
   addNode: (position) => {
     const { nodes } = get();
     const id = `${nodes.length + 1}-${Date.now()}`;
-    const label = generateLabel(nodes.length);
+    
+    const maxLabel = nodes.reduce((max, node) => {
+        const num = parseInt(node.data.label as string);
+        return !isNaN(num) && num > max ? num : max;
+    }, 0);
+    const label = (maxLabel + 1).toString();
+
     const newNode: Node = {
       id,
       type: 'default',
@@ -116,6 +130,14 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       connectable: true,
     };
     set({ nodes: [...nodes, newNode] });
+  },
+
+  removeEdge: (edgeId: string) => { // ✅ ฟังก์ชันลบเส้น
+      set(state => ({
+          edges: state.edges.filter(e => e.id !== edgeId),
+          isFinished: false,
+          executionResult: null
+      }));
   },
 
   deleteSelectedElements: (nodeIds, edgeIds) => {
@@ -136,12 +158,19 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   resetGraph: () => {
-     const currentAlgo = get().selectedAlgo;
-     const preset = PRESETS[currentAlgo];
+     const { selectedAlgo, isDirected } = get();
+     const preset = PRESETS[selectedAlgo];
      const newNodes = preset ? withDimensions(JSON.parse(JSON.stringify(preset.nodes))) : [];
+     const newEdges = preset ? JSON.parse(JSON.stringify(preset.edges)) : [];
+     
+     const formattedEdges = newEdges.map((e: any) => ({
+         ...e,
+         markerEnd: isDirected ? { type: MarkerType.ArrowClosed, color: '#71717a' } : undefined
+     }));
+
      set({ 
          nodes: newNodes, 
-         edges: preset ? JSON.parse(JSON.stringify(preset.edges)) : [],
+         edges: formattedEdges,
          isRunning: false,
          isFinished: false,
          startNodeId: newNodes.length > 0 ? newNodes[0].id : null,
@@ -152,13 +181,20 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   setAlgorithm: (algo: string) => {
+    const { isDirected } = get();
     const preset = PRESETS[algo];
     if (preset) {
         const newNodes = withDimensions(JSON.parse(JSON.stringify(preset.nodes)));
+        const newEdges = JSON.parse(JSON.stringify(preset.edges));
+        const formattedEdges = newEdges.map((e: any) => ({
+            ...e,
+            markerEnd: isDirected ? { type: MarkerType.ArrowClosed, color: '#71717a' } : undefined
+        }));
+
         set({ 
             selectedAlgo: algo, 
             nodes: newNodes, 
-            edges: JSON.parse(JSON.stringify(preset.edges)),
+            edges: formattedEdges,
             isRunning: false,
             isFinished: false,
             startNodeId: newNodes.length > 0 ? newNodes[0].id : null,
@@ -198,7 +234,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   runAlgorithm: async () => {
-    const { nodes, edges, selectedAlgo, isRunning, startNodeId, endNodeId } = get();
+    const { nodes, edges, selectedAlgo, isRunning, startNodeId, endNodeId, isDirected } = get();
     if (isRunning || nodes.length === 0) return;
 
     set({ isRunning: true, isFinished: false, executionResult: null, logs: [] });
@@ -211,7 +247,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
             className: n.id === currentStartNode ? 'is-start' : (n.id === endNodeId ? 'is-end' : ''), 
             style: { ...n.style, width: 56, height: 56 } 
         })),
-        edges: edges.map(e => ({ ...e, animated: false, className: '', style: { ...e.style, stroke: '#71717a', strokeWidth: 2 } }))
+        edges: edges.map(e => ({ 
+            ...e, 
+            animated: false, 
+            className: '', 
+            style: { ...e.style, stroke: '#71717a', strokeWidth: 2 },
+            markerEnd: isDirected ? { type: MarkerType.ArrowClosed, color: '#71717a' } : undefined
+        }))
     });
     
     set(state => ({ logs: [...state.logs, `> Starting ${selectedAlgo}...`] }));
@@ -220,12 +262,12 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     let steps: AlgoStep[] = [];
 
     switch (selectedAlgo) {
-        case 'BFS': steps = bfs(nodes, edges, currentStartNode); break;
-        case 'DFS': steps = dfs(nodes, edges, currentStartNode); break;
-        case 'Dijkstra': steps = dijkstra(nodes, edges, currentStartNode, endNodeId); break;
-        case 'MST-Prim': steps = prim(nodes, edges, currentStartNode); break; // ✅ แก้ไข: ส่ง currentStartNode
-        case 'MST-Kruskal': steps = kruskal(nodes, edges); break;
-        default: steps = dfs(nodes, edges, currentStartNode);
+        case 'BFS': steps = bfs(nodes, edges, currentStartNode, isDirected); break;
+        case 'DFS': steps = dfs(nodes, edges, currentStartNode, isDirected); break;
+        case 'Dijkstra': steps = dijkstra(nodes, edges, currentStartNode, endNodeId, isDirected); break;
+        case 'MST-Prim': steps = prim(nodes, edges, currentStartNode); break;
+        case 'MST-Kruskal': steps = kruskal(nodes, edges, currentStartNode); break;
+        default: steps = dfs(nodes, edges, currentStartNode, isDirected);
     }
 
     for (const step of steps) {
@@ -252,7 +294,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
                 edges: state.edges.map(e => e.id === step.edgeId ? { 
                     ...e, 
                     animated: true, 
-                    style: { stroke: '#f59e0b', strokeWidth: 3 }
+                    style: { stroke: '#f59e0b', strokeWidth: 3 },
+                    markerEnd: isDirected ? { type: MarkerType.ArrowClosed, color: '#f59e0b' } : undefined
                 } : e)
             }));
             await sleep(currentSpeed);
@@ -268,7 +311,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
                     edges: state.edges.map(e => e.id === step.edgeId ? { 
                         ...e, 
                         className: 'edge-final',
-                        animated: false
+                        animated: false,
+                        markerEnd: isDirected ? { type: MarkerType.ArrowClosed, color: '#facc15' } : undefined
                     } : e)
                 }));
             }
@@ -277,7 +321,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }
 
     const uniqueVisited = new Set<string>();
-    
     const processPath = steps
         .filter(s => s.type === 'visit-node')
         .map(s => {
@@ -334,7 +377,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
                 `----------------------------------------`,
                 `🤖 Algorithm Process (Exploration Order):`,
                 `   ${processPath}`,
-                `🏆 Teacher's Answer (Shortest Path):`,
+                `🏆 (Shortest Path):`,
                 `   Path: ${pathStr}`,
                 `   Total Weight: ${totalWeight}`,
                 `----------------------------------------`
@@ -348,7 +391,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
             `----------------------------------------`,
             `🤖 Algorithm Process (How it thinks):`,
             `   ${processPath}`,
-            `👩‍🏫 Teacher's Answer (Final Result):`,
+            `👩‍🏫 (Final Result):`,
             `   ${finalAnswerPath}`,
             `----------------------------------------`
         ];
